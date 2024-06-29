@@ -1,0 +1,172 @@
+---
+title: "4.MD"
+author: "Dmitrijs Ciruks"
+date: "2024-01-11"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+
+### 1. uzdevums
+
+```{r 1}
+library(tidyverse)
+library(readxl)
+
+
+data <- read_excel("C:/Users/dmitr/Downloads/presidential_election.xls")
+model <- lm(BUCHANAN ~ GORE, data = data)
+
+summary(model)
+
+cooks_dist <- cooks.distance(model)
+
+plot(cooks_dist, type = "h", main = "Cook's Distance for each observation")
+
+threshold <- 4 / length(data$GORE)
+influential_points <- which(cooks_dist > threshold)
+
+data[influential_points, ]
+
+#residuals <- resid(model)
+
+#plot(data$GORE, residuals, xlab = "GORE", ylab = "Residuals")
+#abline(h = 0, col = "red")
+
+```
+Saskaņā ar 'Cook's Distance', mēs varam redzēt, ka 'novērojumi' 6, 13 un 50 visdrīzāk ir izlēcēji. Tas nozīmē, ka tie anomāli izceļas pret vispārējo izlasi, kas var deformēt rezultātus, veicot regresiju.
+
+
+
+
+
+### 2. uzdevums
+
+
+
+
+```{r 2}
+model_with_indicator <- lm(BUCHANAN ~ GORE + DUMPALM, data = data)
+summary(model_with_indicator)
+summary_model <- summary(model_with_indicator)
+
+t_value <- (model_with_indicator$coefficients[3] - 975) / summary_model$coefficients["DUMPALM", "Std. Error"]
+p_value <- 1 - pt(t_value, df = nrow(data)-3)
+p_value
+```
+Šeit redzams kopējais modelis ar indikatora mainīgā pievienošanu. Tāpat aprēķināta p-vērtība hipotēzes pārbaudei par to, vai kļūdainu balsu skaits ir mazāks par 975.
+P-vērtība ir ievērojami zemāka par 5%, kas norāda, ka mēs varam noraidīt nulles hipotēzi pie 5% nozīmīguma līmeņa.
+
+
+
+### 3. uzdevums
+
+
+```{r 3}
+library(sandwich)
+library(lmtest)
+
+bptest_result <- bptest(model_with_indicator, ~ TOTAL, data = data)
+
+print(bptest_result)
+
+
+```
+Veikts Breusch-Pagan tests modelī ar indikatora mainīgo, lai pārbaudītu heteroskedastiskumu šādā formā: $$\sigma^2 = h(\gamma_1 + \gamma_2 n_i)$$
+Kā redzams no rezultātiem, $p-value < 5\%$, kas ļauj mums noraidīt hipotēzi par homoskedascitāti, pastāv heteroskedascitāte.    
+Piezīme: Es nesapratu no uzdevuma, uz kuru no modeļiem veikt testu (uz modeli bez indikatora mainīgā vai ar to, bet testa rezultāti abiem modeļiem ir vienādi - pastāv heteroskedascitāte, kas ir loģiski).
+
+
+
+### 4. uzdevums
+
+Pārveidosim visus balsu skaitļus procentuālajās attiecībās (sadalam ar kopējo skaitu).  
+Uzbūvēsim jaunu modeli procentuālajām vērtībam.
+
+
+```{r 4}
+data$percent_buchanan <- data$BUCHANAN / data$TOTAL
+data$percent_gore <- data$GORE / data$TOTAL
+
+model_percent <- lm(percent_buchanan ~ percent_gore + DUMPALM, data = data)
+
+summary(model_percent)
+```
+
+
+Lai pārbaudītu hipotēzi, mums ir jāpārveido arī 975 vērtība procentuālā lielumā. Pēc tam var aprēķināt T-statistiku un p-vērtību.
+
+```{r 5}
+
+#hipotez precent
+total_votes_palm_beach <- mean(data$TOTAL[data$DUMPALM == 1]) 
+percent_threshold <- 975 / total_votes_palm_beach
+
+b <- model_percent$coefficients[[3]]
+Sb <- sqrt(diag(vcov(model_percent)))[3]
+t_stat <- (b - percent_threshold) / Sb
+p_value <- 1 - pt(t_stat, df = nrow(data)-3)
+p_value
+```
+Kā redzams, $p>5\%$, kas nozīmē, ka mēs nevaram noraidīt nulles hipotēzi: $$H_0: v(\%) < 0.002255451$$
+
+
+
+
+
+Veiksim Breusch-Pagan testu šajā modelī, bet izmantosim citu heteroskedascitāti modeļa formu:
+$$\sigma^2_i = h(\gamma_1 + \gamma_2 \frac{1}{n_i}) $$
+
+
+
+```{r 6}
+bptest_result <- bptest(model_percent, ~ I(1/TOTAL), data = data)
+
+print(bptest_result)
+
+
+```
+Varam noraidīt nulles hipotēzi par homoskedascitāti pie 5% nozīmīguma līmeņa.
+
+
+
+### 5. uzdevums
+
+Lai atkārtotu testu jaunajam modelim ar svaru pievienošanu, vispirms jādefinē svaru masīvs. To izdarīsim šādā formā:
+$$w_i = \frac{1}{\sqrt(TOTAL_i)} $$
+
+
+```{r 7}
+weights <- 1 / sqrt(data$TOTAL)
+weighted_model <- lm(BUCHANAN ~ GORE + DUMPALM, data = data, weights = weights)
+```
+
+Veiksim Breusch-Pagan testu attiecībā uz šo modeli.
+
+```{r 8}
+summary_weighted <- summary(weighted_model)
+summary_weighted
+bptest_result <- bptest(weighted_model, ~ TOTAL, data = data)
+print(bptest_result)
+```
+Kā var redzēt, situācija ir mainījusies. Tagad $p-value = 0.8058$, kas nozīmē, ka mēs nevaram noraidīt hipotēzi par homoskedastiskumu.
+Tālāk atkārtosim darbības no 2. uzdevuma.
+
+```{r 9}
+t_value_w <- (weighted_model$coefficients[3] - 975) / summary_weighted$coefficients["DUMPALM", "Std. Error"]
+p_value_w <- 1 - pt(t_value, df = nrow(data)-3)
+p_value_w
+```
+Varam noraidīt nulles hipotēzi pie 5% nozīmīguma līmeņa.
+
+### 6. uzdevums
+
+Es uzskatu, ka modelis (weighted_model) ir statistiski nozīmīgs, jo visi koeficienti ir pozitīvi un statistiski nozīmīgi, kas ir redzams pēc p-vērtībām. R-kvadrāta vērtība ir aptuveni 0.872, kas nozīmē, ka modelis apraksta apmēram 87% no atkarīgā mainīgā variācijām, kas ir labs rezultāts šāda veida datu kopai un veiktajām manipulācijām.
+
+Pēc svaru pievienošanas heteroskedastiskums ir pazudis, kas ļāva atkārtoti pārbaudīt hipotēzi par kļūdaino balsu skaitu, un man šķiet, ka tas ir statistiski nozīmīgs šī uzdevuma kontekstā. Tomēr ir svarīgi atzīt, ka statistiskā nozīmīgums un reālās situācijas var būtiski atšķirties. Tāpēc varam secināt, ka modelis labi apraksta nosacījumus uzdevuma ietvaros, un statistiski varam secināt, ka kļūdaino balsu skaits ir lielāks par 975.
+
+
+

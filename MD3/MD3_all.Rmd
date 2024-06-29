@@ -1,0 +1,155 @@
+---
+title: "3. MD"
+author: "Dmitrijs Ciruks"
+date: "2023-12-11"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r 0}
+library(readxl)
+data <- read_excel("C:/Users/dmitr/Downloads/xr318mgc.XLS")
+
+data$y <- log(data$SGAS/data$PGAS)
+data$x2 <- log(data$INC/data$PALL)
+data$x3 <- log(data$PGAS/data$PALL)
+data$x4 <- log(data$PPUB/data$PALL)
+data$x5 <- log(data$PNCAR/data$PALL)
+data$x6 <- log(data$PUCAR/data$PALL)
+```
+
+## 1. punkts
+
+
+```{r 1}
+model1 <- lm(y ~ x2 + x3 + x4 + x5 + x6, data=data)
+summary(model1) 
+reduced_model1 <- lm(y ~ x2 + x3 + x4, data=data)
+anova(reduced_model1, model1)
+```
+P-vērtība:
+```{r 2}
+anova(reduced_model1, model1)["2", "Pr(>F)"]
+```
+pārsniedz 5 %, kas norāda, ka, izmantojot mūsu modeli un ņemot vērā pieejamos datus, nevar apgalvot, ka jaunu un lietotu automobiļu cenām ir būtiska ietekme uz benzīna patēriņu.
+
+
+## 2. punkts
+
+
+```{r 3}
+model0 <- lm(y ~ log(PGAS) + log(PALL) + log(INC) + log(PPUB), data=data)
+confint(model0, level=0.95)
+```
+95% ticamības intervāls log(PGAS) = $[-0.40407694, -0.1892803]$
+
+## 3. punkts
+
+
+```{r 4}
+library(car)
+linearHypothesis(model0, "log(PGAS) + log(PALL) + log(INC) + log(PPUB) = 0")
+```
+P-vērtība:
+```{r 5}
+linearHypothesis(model0, "log(PGAS) + log(PALL) + log(INC) + log(PPUB) = 0")["2", "Pr(>F)"]
+```
+ir mazāka par 5%, tāpēc var noraidīt hipotēzi par to, ka $\beta_2 + \beta_3 + \beta_4 + \beta_5 = 0$, pie 5% nozīmības līmeņa.
+
+## 4. punkts
+
+```{r 6}
+linearHypothesis(model0, "log(PALL) + log(INC) + log(PPUB) = 0")
+```
+P-vērtība:
+```{r 7}
+linearHypothesis(model0, "log(PALL) + log(INC) + log(PPUB) = 0")["2", "Pr(>F)"]
+```
+ir lielāka par 5%, tāpēc nevar noraidīt hipotēzi $\beta_3 + \beta_4 + \beta_5 = 0$ pie 5% nozīmības līmeņa.
+Izpētīsim ierobežoto modeli:  
+$y = \beta_1 + \beta_2log(PGAS) + (- \beta_4 - \beta_5)log(PALL) + \beta_4log(INC) + \beta_5log(PPUB) + \epsilon = \beta_1 + \beta_2log(PGAS) + \beta_4(log(INC) - log(PALL)) + \beta_5(log(PPUB) - log(PALL)) + \epsilon$  
+kur  
+$log(INC) - log(PALL) = log(INC/PALL) = x_2$ un $log(PPUB) - log(PALL) = log(PPUB/PALL) = x_4$,  
+kas parāda, kuri regresori ir iekļauti šajā modelī.
+
+
+## 5. punkts
+```{r 8}
+restricted_model2 <- lm(y ~ log(PGAS) + x2 + x4, data=data)
+confint(restricted_model2, "log(PGAS)", level=0.95)
+```
+95% ticamības intervāls log(PGAS) = $[-0.3408097, -0.293121]$. Intervāls ir mazāks nekā uzdevuma 2. punktā minētajā modelī. Tas, visticamāk, ir saistīts ar to, ka šajā modelī mēs izmantojām mazāk regresoru, proti, modelī neiekļāvām mazāk svarīgos regresorus.
+
+
+## 6. punkts
+Izmantojot dažādus avotus, man izdevās atrast šādus datus par 2022. gadu:  
+$SGAS = 612100$  
+$PGAS = 327$  
+$INC = 21820$  
+$PALL = 290$  
+$PPUB = 259.85$  
+
+Avoti:  
+https://ycharts.com/indicators/us_gasoline_station_sales  
+https://www.gasbuddy.com/go/2022-gas-prices-a-year-in-review  
+https://united-states.reaproject.org/  
+https://www.bls.gov/opub/ted/2023/consumer-price-index-2022-in-review.htm  
+ChatGPT-4  
+
+```{r 9}
+library(readxl)
+data22 <- read_excel("C:/Users/dmitr/Downloads/data2022.xlsx")
+
+data22$y <- log(data22$SGAS/data22$PGAS)
+data22$x2 <- log(data22$INC/data22$PALL)
+data22$x3 <- log(data22$PGAS/data22$PALL)
+data22$x4 <- log(data22$PPUB/data22$PALL)
+
+predict(model0, newdata = data22, interval = 'confidence', level = 0.95)
+predict(restricted_model2, newdata = data22, interval = 'confidence', level = 0.95)
+```
+95% ticamības intervāls izmantojot 2. punktā modeli ir $[7.621209, 7.93]$ un izmantojot 4. punktā modeli [7.68315, 7.814043].
+
+## 7. punkts
+
+"Jaunais" $y$ ir vienāds ar $7.534691$.  
+$7.534691 \notin [7.621209, 7.93]$  
+$7.534691 \notin [7.68315, 7.814043]$  
+
+
+```{r 10}
+data22 <- read_excel("C:/Users/dmitr/Downloads/data2022.xlsx")
+data22$y <- log(data22$SGAS/data22$PGAS)
+data22$x2 <- log(data22$INC/data22$PALL)
+data22$x3 <- log(data22$PGAS/data22$PALL)
+data22$x4 <- log(data22$PPUB/data22$PALL)
+data22$PNCAR <- NA
+data22$PUCAR <- NA
+data22$x5 <- NA
+data22$x6 <- NA
+k <- 5
+g <- 1
+n <- nrow(data)
+combined_data <- rbind(data, data22)
+model0_new <- lm(y ~ log(PGAS) + log(PALL) + log(INC) + log(PPUB), data=combined_data)
+E <- model0_new$residuals
+E0 <- model0$residuals
+F <- (n-k)/g * (sum(E^2) - sum(E0^2))/sum(E0^2)
+p_value2 <- 1 - pf(F, df1 = g, df2 = n-k)
+
+
+restricted_model2_new <- lm(y ~ log(PGAS) + x2 + x4, data=combined_data)
+E <- restricted_model2_new$residuals
+E0 <- restricted_model2$residuals
+F <- (n-k)/g * (sum(E^2) - sum(E0^2))/sum(E0^2)
+p_value4 <- 1 - pf(F, df1 = g, df2 = n-k)
+
+p_value2
+p_value4
+```
+
+
+Kā redzams, abas P-vērtības ir mazākas par 5 %, kas neļauj apgalvot, ka 2. un 4. punkta modeļi labi apraksta jaunos datus. Tomēr tas sakrīt ar faktu, ka "jaunais" $y$ neiekļuva intervālos, kas aprēķināti 6. punktā. visticamāk, šādi rezultāti ir saistīti ar jaunajiem datiem. Dati vai nu nav pietiekami pareizi/precīzi, vai arī tie var būt no dažādiem reģioniem/ pilsētām, vai arī slikti sagatavoti (slikti aprēķināts vidējais). Par to ir grūti spriest, jo dati tika iegūti no dažādiem avotiem, un man nav izdevies atrast precīzu un pareizu avotu no ASV, kas sniegtu aktuālus tāda paša veida datus kā tabulā.

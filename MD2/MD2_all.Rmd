@@ -1,0 +1,271 @@
+---
+title: "2. MD"
+author: "Dmitrijs Ciruks"
+date: "2023-11-13"
+header-includes:
+  - \usepackage{amsmath}
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(breaklines = TRUE)
+knitr::opts_chunk$set(tidy = TRUE)
+```
+
+## 2. Uzd. (Simulācija)
+
+Rezultāti no simulācijas (zemāk) parāda, ka starpība starp dispersijām $b_1$ un $b_R$ atrodas virs nulles līnijas. Tas vizuāli apstiprina teorētisko rezultātu.
+
+```{r 2.uzd}
+set.seed (123)
+n <- 200
+
+sim <- function ()
+{
+omega <- rnorm (n)
+eta <- rnorm (n)
+eps <- rnorm (n)
+x_1 <- 2 + omega + 0.2 * eta
+x_2 <- 5 + omega
+y <- x_1 + x_2 + eps
+return (c (summary(lm(y~x_1+x_2))$coefficients[2 ,2]^2, summary(lm(y~x_1))$coefficients[2 ,2]^2)) 
+}
+
+sim_res <- replicate (1000 , sim())
+D_b_1 <-sim_res [1 ,]
+D_b_r <-sim_res [2 ,]
+plot (seq_len(1000), D_b_1 - D_b_r, ylim =c ( -0.05 ,0.2), ylab = 'D(b_1)-D(b_R)', xlab = 'N', main = '')
+
+abline (h=0, col = 'blue')
+```
+
+## 3.uzd
+
+
+```{r 30.uzd, echo=TRUE}
+library(Ecdat)
+data_full <- as.data.frame(Males)
+```
+Mainīgie:
+
+\begin{itemize}
+  \item \textbf{school} - integer, mācību gadu skaits.
+  \item \textbf{exper} - integer, pieredzes gadi.
+  \item \textbf{union} - factor (Levels: no yes), algas saskaņā ar "koplīgumiem" vai nē.
+  \item \textbf{ethn} - factor (Levels: other black hisp), etniskā grupa.
+  \item \textbf{maried} - factor (Levels: no yes), precējies vai ne.
+  \item \textbf{health} - factor (Levels: no yes), vai ir vai nav veselības problēmu.
+  \item \textbf{wage} - num or double, log no stundas algas.
+  \item \textbf{industry} - factor (Levels: Agricultural Mining Construction Trade Transportation Finance Business and Repair Service Personal Service Entertainment Manufacturing Professional and Related Service Public Administration), amata profils.
+  \item \textbf{occupation} - factor (Levels: Professional, Technical and kindred Managers, Officials and Proprietors Sales Workers Clerical and kindred Craftsmen, Foremen and kindred Operatives and kindred Laborers and farmers Farm Laborers and Foreman Service Workers), amats vai profesija.
+  \item \textbf{residence} - factor (Levels: rural area north east nothern central south), dzīvesvietas reģions.
+\end{itemize}
+
+Izfiltrēt datus, kuros mainīgā year vērtība ir 1980:
+
+```{r 31.uzd, echo=TRUE}
+data <- data_full[data_full$year == 1980,]
+```
+
+Lai iegūtu tiešo, netiešo un kopējo efektu uz mainīgo \textbf{wage} no mainīgajiem \textbf{school} un \textbf{exper}, ir jāveic regresijas analīzu, pēc kuras jāanalizē iegūtie koeficienti:
+
+```{r 32.uzd, echo=TRUE}
+model_1 <- lm(wage ~ school + exper, data = data)
+b1 <- model_1$coefficients[[2]] 
+b2 <- model_1$coefficients[[3]]
+
+model_2 <- lm(exper ~ school, data = data)
+b3 <- model_2$coefficients[[2]]
+```
+
+
+Tiešais efekts:
+```{r 33.uzd, echo=TRUE}
+b1
+```
+Tas nozīmē, ka, palielinot izglītības ilgumu par vienu gadu ar fiksētu pieredzi, vidējā alga palielinātos par 11.5% ($e^{0.1084647} - 1 \cdot 100\%$).
+
+Netiešais efekts:
+```{r 34.uzd, echo=TRUE}
+b_nt <- b2 * b3
+b_nt
+```
+
+Tas nozīmē, ka, palielinot izglītības ilgumu par vienu gadu ar fiksētu pieredzi, vidējā algas netieši samazinās par 4.9%.
+
+Kopējais efekts:
+
+```{r 35.uzd, echo=TRUE}
+b_sum <- b_nt + b1
+b_sum
+```
+
+Salīdzināsim koeficientus "pilnajā" modelī un modelī, kas "attīrīts" no citu mainīgo ietekmes, izņemot wage un school:
+```{r 36.uzd, echo=TRUE}
+model_3 <- lm(wage ~ exper + union + ethn + maried + health + industry + occupation + residence, data = data)
+e_1 <- model_3$residuals
+
+model_4 <- lm(school ~ exper + union + ethn + maried + health + industry + occupation + residence, data = data)
+e_2 <- model_4$residuals
+
+model_cl <- lm(e_1 ~ e_2) # "attīrīts"
+b_cl <- model_cl$coefficients[[2]] #"attīrīts"
+
+model_full <- lm(wage ~ school + exper + union + ethn + maried + health + industry + occupation + residence, data = data)
+a <- model_full$coefficients[[1]]
+b_full <- model_full$coefficients[[2]] #"pilnajā"
+e_full <- model_full$residuals
+
+b_cl
+b_full
+```
+Acīmredzot abi koeficienti ir vienādi.
+Izrādās, ka, palielinot izglītībai veltīto laiku par vienu gadu (ar fiksētiem citiem lielumiem), alga palielinās vidēji par 9,8 %.
+
+```{r 37.uzd, echo=TRUE}
+plot(e_2, e_1)
+```
+
+```{r 38.uzd, echo=TRUE}
+model_test <- lm(wage ~ school + exper + union + occupation + industry + residence, data = data)
+summary(model_test)
+```
+
+Izmantojot šos datus, var izdarīt šādus secinājumus (visās turpmākajās interpretācijās mēs pieņemam, ka visi mainīgie, izņemot interpretāciju, par kuru runājam, ir fiksēti):
+
+\begin{itemize}
+  \item \textbf{school} - Palielinot izglītības ilgumu par vienu gadu, alga vidēji palielinās par 10.123\%.
+  \item \textbf{exper} - Palielinot pieredzes ilgumu par vienu gadu, alga vidēji palielinās par 6.438\%.
+  \item \textbf{unionyes} - Darba arodbiedrības locekļiem vidēji ir par 24.748\% lielāka alga.
+  \item \textbf{occupationManagers, Officials and Proprietors}: Salīdzinājumā ar profesiju Professional, kategorijas Managers, Officials un Proprietors pārstāvjiem vidēji ir par 1.136\% lielāka alga.
+  \item \textbf{occupationSales Workers} - Salīdzinājumā ar profesiju Professional, kategorijas Sales Workers pārstāvjiem vidēji ir par 12.15\% mazāka alga.
+  \item \textbf{occupationClerical and kindred}: Salīdzinājumā ar profesiju Professional, kategorijas Clerical and kindred pārstāvjiem vidēji ir par 11.8\% mazāka alga.
+
+  \item \textbf{occupationCraftsmen, Foremen and kindred} - Salīdzinājumā ar profesiju Professional, kategorijas Craftsmen, Foremen un kindred pārstāvjiem vidēji ir par 5.136\% mazāka alga.
+
+  \item \textbf{occupationLaborers and farmers} - Salīdzinājumā ar profesiju Professional, kategorijas Laborers un farmers pārstāvjiem vidēji ir par 8.981\% mazāka alga.
+
+  \item \textbf{occupationFarm Laborers and Foreman} - Salīdzinājumā ar profesiju Professional, kategorijas Farm Laborers un Foreman pārstāvjiem vidēji ir par 14.484\% mazāka alga.
+
+  \item \textbf{occupationService Workers} - Salīdzinājumā ar profesiju Professional, kategorijas Service Workers pārstāvjiem vidēji ir par 21.775\% mazāka alga.
+
+  \item \textbf{industryMining} - Salīdzinājumā ar nozari Agricultural, nozares Mining pārstāvjiem vidēji ir par 29.429\% mazāka alga.
+
+  \item \textbf{industryConstruction} - Salīdzinājumā ar nozari Agricultural, nozares Construction pārstāvjiem vidēji ir par 21.403\% lielāka alga.
+
+  \item \textbf{industryTrade} - Salīdzinājumā ar nozari Agricultural, nozares Trade pārstāvjiem vidēji ir par 6.515\% lielāka alga.
+
+  \item \textbf{industryTransportation} - Salīdzinājumā ar nozari Agricultural, nozares Transportation pārstāvjiem vidēji ir par 18.873\% lielāka alga.
+
+  \item \textbf{industryFinance} - Salīdzinājumā ar nozari Agricultural, nozares Finance pārstāvjiem vidēji ir par 38.865\% lielāka alga.
+
+  \item \textbf{industryBusiness and Repair Service} - Salīdzinājumā ar nozari Agricultural, nozares Business un Repair Service pārstāvjiem vidēji ir par 1.703\% mazāka alga.
+
+  \item \textbf{industryPersonal Service} - Salīdzinājumā ar nozari Agricultural, nozares Personal Service pārstāvjiem vidēji ir par 17.615\% mazāka alga.
+
+  \item \textbf{industryEntertainment} - Salīdzinājumā ar nozari Agricultural, nozares Entertainment pārstāvjiem vidēji ir par 34.432\% mazāka alga.
+
+  \item \textbf{industryManufacturing} - Salīdzinājumā ar nozari Agricultural, nozares Manufacturing pārstāvjiem vidēji ir par 31.904\% lielāka alga.
+
+  \item \textbf{industryProfessional and Related Service} - Salīdzinājumā ar nozari Agricultural, nozares Professional un Related Service pārstāvjiem vidēji ir par 5.347\% mazāka alga.
+
+  \item \textbf{industryPublic Administration} - Salīdzinājumā ar nozari Agricultural, nozares Public Administration pārstāvjiem vidēji ir par 36.817\% lielāka alga.
+
+  \item \textbf{residencenorth east} - Salīdzinājumā ar dzīvesvietu rural area, residencenorth east kategorijas pārstāvjiem vidēji ir par 17.431\% mazāka alga.
+
+  \item \textbf{residencenothern central} - Salīdzinājumā ar dzīvesvietu rural area, residencenothern central kategorijas pārstāvjiem vidēji ir par 21\% mazāka alga.
+
+  \item \textbf{residencesouth} - Salīdzinājumā ar dzīvesvietu rural area, residencesouth kategorijas pārstāvjiem vidēji ir par 18\% mazāka alga.
+\end{itemize}
+
+Modelis izskaidro 26.7% no kopējās algu variācijas, jo $R^2 = 0.267$.
+
+
+## 4.uzd
+```{r 41.uzd, echo=TRUE}
+library(readxl)
+data <- read_excel("C:/Users/dmitr/Downloads/coffee.XLS")
+n <- nrow(data)
+model4_full <- lm(log(QUANTITY) ~ log(DEAL) + A, data = data)
+model4_limited <-lm(log(QUANTITY) ~ log(DEAL), data = data)
+
+e <- model4_full$residuals
+e_R <- model4_limited$residuals
+
+F <- (n-1)*(sum(e_R^2) - sum(e^2)) / sum(e^2)
+p_val <- 1 - pf(F, df1=1, df2=n-1)
+
+summary(model4_full)$coefficients[, "Pr(>|t|)"]
+p_val
+```
+T-testa rezultāti rāda, ka p-vērtība ir $1.508164 \cdot e^{-5}$, kas nozīmē, ka reklāmas kampaņas īstenošanai ir statistiski nozīmīga ietekme Uz pārdošanas apjomu pie 5% nozīmības līmeņa.
+F-tests parādīja, ka p-vērtība ir $3.931107 \cdot e^{-6}$, kas nozīmē, ka reklāmas kampaņas īstenošanai ir statistiski nozīmīga ietekme uz pārdošanas apjomu pie 5% nozīmības līmeņa.
+
+```{r 42.uzd, echo=TRUE}
+b_2 <- model4_full$coefficients[[2]]
+SEb_2 <- summary(model4_full)$coefficients[, "Std. Error"][2]
+t <- (b_2 - 1) / SEb_2
+p_val2 <- 1 - pt(t, df=n-3)
+unname(p_val2)
+```
+No tā izriet, ka var noraidīt $H_0$ hipotēzi pie 5% nozīmības līmeņa.
+
+```{r 43.uzd, echo=TRUE}
+b_3 <- model4_full$coefficients[[3]]
+SEb_3 <- summary(model4_full)$coefficients[, "Std. Error"][3]
+plusint_2 <- qt(1 - 0.95 / 2, df = n - 3) * SEb_2
+plusint_3 <- qt(1 - 0.95 / 2, df = n - 3) * SEb_3
+
+lower_bound_b_2 <- b_2 - plusint_2
+upper_bound_b_2 <- b_2 + plusint_2
+
+lower_bound_b_3 <- b_3 - plusint_3
+upper_bound_b_3 <- b_3 + plusint_3
+```
+
+95% ticamības intervāls $B_2$ no
+```{r 44.uzd, echo=FALSE}
+unname(lower_bound_b_2)
+```
+līdz
+```{r 45.uzd, echo=FALSE}
+unname(upper_bound_b_2)
+```
+
+95% ticamības intervāls $B_3$ no
+```{r 46.uzd, echo=FALSE}
+unname(lower_bound_b_3)
+```
+līdz
+```{r 47.uzd, echo=FALSE}
+unname(upper_bound_b_3)
+```
+
+```{r 48.uzd, echo=TRUE}
+#only with A == 0
+data_A0 <- data[data$A == 0,]
+n_A <- nrow(data_A0)
+g <- n - n_A
+k <- 2
+model4_A <- lm(log(QUANTITY) ~ log(DEAL), data = data_A0)
+e_A <- model4_A$residuals
+
+F <- (n-k)/g * (sum(e_R^2) - sum(e_A^2)) / sum(e_A^2)
+p_value_A <- 1 - pf(F, df1=g, df2=n-k)
+p_value_A
+```
+
+Iegūtā p-vērtība norāda, ka pie 5% nozīmības līmeņa var noraidīt hipotēzi par to, ka datus par nedēļām, kurās netika veikta reklāma, var izmantot arī to nedēļu prognozēšanai, kurās tika veikta reklāma.
+
+```{r 49.uzd, echo=TRUE}
+a <- model4_full$coefficients[[1]]
+b <- model4_full$coefficients[[2]]
+plot(log(data_A0$QUANTITY), a + b * log(data_A0$DEAL), xlab = "log(Q) (A = 0)", ylab = "a + b * log(D) (A = 0)")
+abline(0, 1)
+plot(log(data[data$A == 1,]$QUANTITY), a + b * log(data[data$A == 1,]$DEAL), xlab = "log(Q) (A = 1)", ylab = "a + b * log(D) (A = 1)")
+abline(0, 1)
+```
+No pirmā grafika (A = 0) ir redzams, ka modelis labi prognozē datu uzvedību nedēļām, kurās netika veikta reklāma. Tomēr, izmantojot tikai datus A = 1 (otrais grafiks), var redzēt, ka šo datu ir nepietiekami. Visi punkti ir stipri sajaukti "stūros", un, lai tas būtu skaidrāk redzams, ir pievienota līnija $y = x$. No tā var secināt, ka, izmantojot tikai šos datus, nebūs iespējams labi prognozēt visus datus.
